@@ -1,0 +1,39 @@
+# Python / uv
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+# uv.lock is committed on purpose (reproducible installs) — do not ignore it.
+
+# Test coverage (pytest-cov)
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Build artifacts (hatchling packaged project)
+build/
+dist/
+*.egg-info/
+
+# Generated data caches and reports (PRD §4: data/raw is gitignored)
+data
+
+# Secrets / local env
+.env
+.env.*
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local tooling — not tracked
+.claude/
+openspec/
+PRD.md
+CLAUDE.md

@@ -1,0 +1,46 @@
+[project]
+name = "ffdraft"
+version = "0.1.0"
+description = "Local-first fantasy football draft decision engine for Sleeper snake drafts"
+readme = "README.md"
+requires-python = ">=3.12,<3.14"   # PRD §3.1: 3.12, 3.13 acceptable; not 3.11-, not bleeding-edge 3.14
+dependencies = [
+    "nflreadpy",
+    "polars",
+    "numpy",
+    "httpx",
+    "pydantic>=2",
+    "pyyaml",
+    "rapidfuzz",
+    "rich",
+    "typer",
+    "scikit-learn",
+]
+
+# lightgbm is intentionally NOT listed: PRD §3.2 gates it to Phase 9 ("do not install earlier").
+# pandas is intentionally excluded: PRD §3.2 / §11.3 mandate Polars.
+
+[project.scripts]
+ffdraft = "ffdraft.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ffdraft"]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "ruff",
+    "mypy",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

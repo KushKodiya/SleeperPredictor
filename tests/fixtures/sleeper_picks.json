@@ -1,0 +1,35 @@
+[
+  {
+    "player_id": "2391",
+    "picked_by": "234343434",
+    "roster_id": "1",
+    "round": 5,
+    "draft_slot": 5,
+    "pick_no": 1,
+    "metadata": {"team": "ARI", "position": "RB", "first_name": "David", "last_name": "Johnson"},
+    "is_keeper": null,
+    "draft_id": "257270643320426496"
+  },
+  {
+    "player_id": "DET",
+    "picked_by": "999999999",
+    "roster_id": "3",
+    "round": 10,
+    "draft_slot": 3,
+    "pick_no": 111,
+    "metadata": {"team": "DET", "position": "DEF", "first_name": "Detroit", "last_name": "Lions"},
+    "is_keeper": null,
+    "draft_id": "257270643320426496"
+  },
+  {
+    "player_id": "4034",
+    "picked_by": "",
+    "roster_id": "7",
+    "round": 1,
+    "draft_slot": 7,
+    "pick_no": 7,
+    "metadata": {"team": "CAR", "position": "RB", "first_name": "Christian", "last_name": "McCaffrey"},
+    "is_keeper": null,
+    "draft_id": "257270643320426496"
+  }
+]
