@@ -19,6 +19,7 @@ import polars as pl
 
 from ffdraft.contracts import (
     FF_PLAYERIDS_REQUIRED,
+    FF_RANKINGS_REQUIRED,
     PBP_REQUIRED,
     PLAYER_STATS_REQUIRED,
     PLAYERS_REQUIRED,
@@ -132,6 +133,22 @@ def pbp(seasons: list[int], *, refresh: bool = False, cache_dir: Path = CACHE_DI
         lambda: nfl.load_pbp(seasons=seasons),
         PBP_REQUIRED,
         "nflverse.load_pbp",
+        refresh=refresh,
+        cache_dir=cache_dir,
+    )
+
+
+def ff_rankings(*, refresh: bool = False, cache_dir: Path = CACHE_DIR) -> pl.DataFrame:
+    """FantasyPros expert consensus ranks, full scrape history (PRD §6.1).
+
+    `type="all"` is the only variant carrying past seasons, which the calibration fit
+    needs. Note this feed has no projected-points column — see CLAUDE.md's R2 log.
+    """
+    return _cached(
+        "ff_rankings_all",
+        lambda: nfl.load_ff_rankings(type="all"),
+        FF_RANKINGS_REQUIRED,
+        "nflverse.load_ff_rankings",
         refresh=refresh,
         cache_dir=cache_dir,
     )

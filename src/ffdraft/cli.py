@@ -12,8 +12,11 @@ from ffdraft.config import load_config
 from ffdraft.data import nflverse
 from ffdraft.data.adp import adp_format_from_scoring, fetch_adp, join_adp_to_crosswalk
 from ffdraft.data.crosswalk import build_crosswalk, load_id_overrides, write_unmatched_report
+from ffdraft.data.overrides import load_overrides
 from ffdraft.data.sleeper import SleeperClient
 from ffdraft.scoring import golden
+from ffdraft.scoring.engine import parse_settings
+from ffdraft.valuation.board import build_board
 
 app = typer.Typer(add_completion=False, help="Fantasy football draft engine")
 console = Console()
@@ -121,6 +124,47 @@ def freeze_golden(
     )
     if failures.height:
         console.print(failures)
+
+
+@app.command()
+def board(
+    season: int = typer.Option(None, help="Season to build the board for"),
+    top: int = typer.Option(20, help="How many players to print"),
+    refresh: bool = typer.Option(False, "--refresh", help="Bypass nflverse caches"),
+) -> None:
+    """Build the ranked draft board for the owner's league (Phase 3 gate)."""
+    cfg = load_config()
+    year = season or cfg.league.season
+    client = SleeperClient(
+        timeout=cfg.runtime.http_timeout_seconds, max_retries=cfg.runtime.http_max_retries
+    )
+    rules = parse_settings(client.get_league(cfg.league.league_id).scoring_settings)
+
+    crosswalk = build_crosswalk(nflverse.ff_playerids(refresh=refresh))
+    overrides = load_overrides(cfg.overrides.projection_overrides, crosswalk)
+    ranked, diagnostics = build_board(
+        cfg, rules, season=year, overrides=overrides, refresh=refresh
+    )
+
+    console.print(ranked.head(top))
+    shrinkage = diagnostics.shrinkage()
+    worst = max(shrinkage.values())
+    style = "green" if worst < 1.0 else "red"
+    console.print(
+        "calibration shrinkage (fitted spread / actual spread, gate: < 1.0): "
+        + ", ".join(f"{p}=[bold {style}]{v:.2f}[/bold {style}]" for p, v in sorted(shrinkage.items()))
+    )
+    console.print(f"board: {ranked.height} players over {ranked['tier'].max()} tiers")
+    if diagnostics.unresolved_rankings.height:  # R4
+        console.print(
+            f"[yellow]WARNING: {diagnostics.unresolved_rankings.height} ranked players "
+            f"did not resolve to a gsis_id and are absent from the board[/yellow]"
+        )
+    for override in diagnostics.unmatched_overrides:
+        console.print(
+            f"[yellow]WARNING: override on line {override.line} targets "
+            f"{override.gsis_id}, who is not on the board[/yellow]"
+        )
 
 
 if __name__ == "__main__":

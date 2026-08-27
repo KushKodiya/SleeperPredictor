@@ -28,4 +28,6 @@ jobs:
         run: uv run pytest tests/test_scoring_golden.py -v
 
       - name: Tests
-        run: uv run pytest --cov=ffdraft.scoring --cov-report=term-missing --cov-fail-under=80
+        run: >-
+          uv run pytest --cov=ffdraft.scoring --cov=ffdraft.valuation
+          --cov-report=term-missing --cov-fail-under=80

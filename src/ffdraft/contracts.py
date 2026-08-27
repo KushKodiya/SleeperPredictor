@@ -75,3 +75,16 @@ PBP_REQUIRED = {
     "fumble", "aborted_play", "forced_fumble_player_1_team", "forced_fumble_player_2_team",
     "fumble_recovery_1_team", "fumble_recovery_2_team", "fumbled_1_team", "fumbled_2_team",
 }
+
+# load_ff_rankings(type="all") — FantasyPros expert consensus RANK. Verified 2026-08-27:
+# this feed carries no projected-points column at any `type`; `ecr` is an average of
+# expert ranks. PRD §6.1 calls it "ECR / consensus projections" — it is ranks only (R2).
+FF_RANKINGS_REQUIRED = {
+    "id", "player", "pos", "team", "ecr", "sd", "best", "worst", "scrape_date", "ecr_type",
+}
+
+# ff_playerids join key for the rankings feed.
+FF_PLAYERIDS_FANTASYPROS = {"fantasypros_id", "gsis_id"}
+
+# Manual projection CSV drops (PRD §6.4), one file per source per season.
+PROJECTION_CSV_REQUIRED = {"player_name", "team", "position", "source", "projected_points"}
