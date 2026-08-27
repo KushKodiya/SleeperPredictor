@@ -1,0 +1,81 @@
+league:
+  platform: sleeper
+  league_id: "REPLACE_ME"          # string, not int — Sleeper IDs overflow int32
+  draft_id: "REPLACE_ME"
+  my_user_id: "REPLACE_ME"
+  season: 2026
+  teams: 8
+  rounds: 15
+  # Roster slots are FETCHED from Sleeper, not configured here.
+  # This block is a fallback only if the API is unreachable.
+  fallback_roster_positions: ["QB","RB","RB","WR","WR","TE","FLEX","FLEX","K","DEF",
+                              "BN","BN","BN","BN","BN"]
+
+flex_eligibility:
+  FLEX:       ["RB", "WR", "TE"]
+  SUPER_FLEX: ["QB", "RB", "WR", "TE"]
+  REC_FLEX:   ["WR", "TE"]
+  WRRB_FLEX:  ["RB", "WR"]
+
+data:
+  cache_dir: "data/raw"
+  history_seasons: [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]
+  sleeper_players_ttl_hours: 24
+  adp_ttl_hours: 12
+
+crosswalk:
+  fuzzy_threshold: 92              # rapidfuzz score below which we do NOT match
+  unmatched_report: "data/interim/unmatched.csv"
+
+calibration:
+  method: isotonic                 # isotonic | linear | none
+  min_training_seasons: 6
+  fit_pool:                        # match FFA's evaluation frame
+    QB: 20
+    RB: 40
+    WR: 40
+    TE: 20
+
+replacement:
+  method: waiver_empirical         # waiver_empirical | last_starter | static_rank
+  waiver_lookback_seasons: 5
+  waiver_percentile: 0.50          # median weekly FA production by position
+
+simulation:
+  n_sims_live: 2000
+  n_sims_backtest: 500
+  shortlist_size: 10
+  force_best_at_each_position: true
+  common_random_numbers: true
+  time_budget_seconds: 45
+  objective: expected_points       # expected_points | championship_equity
+
+opponent_model:
+  # ADP is the population prior. There is NO way to enumerate public Sleeper
+  # drafts, so we do not crawl for one. See M11.
+  type: adp_prior_plus_deviations
+  prior: adp                       # adp | uniform
+  fit_deviations: true             # per-manager terms, partially pooled
+  shrinkage: empirical_bayes
+  shrinkage_prior_strength: 40     # pseudo-picks toward the population mean
+  min_picks_to_fit_manager: 30     # below this, manager == league average
+  temperature_init: 1.0            # fitted; the single most valuable parameter
+  adp_noise_sigma_rounds: 1.2      # pure-fallback model if fitting fails
+
+availability:
+  games_per_season: 17
+  model: empirical_by_age_position   # see M16
+  lookback_seasons: 10
+  age_bin_width: 1
+  min_bin_count: 30                  # below this, pool to position-wide rate
+  workload_percentile_flag: 0.80     # prior-season snap volume above this = elevated risk
+
+overrides:
+  projection_overrides: "overrides/projection_overrides.csv"
+  player_id_overrides: "overrides/player_id_overrides.csv"
+  reload_on_every_pick: true         # so draft-morning edits take effect live
+
+runtime:
+  poll_interval_seconds: 2.0
+  http_timeout_seconds: 10.0
+  http_max_retries: 3

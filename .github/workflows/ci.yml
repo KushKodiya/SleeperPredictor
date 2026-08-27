@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - run: uv python install 3.13
+
+      - run: uv sync --all-extras --dev
+
+      - name: Lint
+        run: uv run ruff check src tests
+
+      # The golden league-score reproduction is the project's canary (PRD §10). It runs
+      # off the frozen fixture in tests/fixtures/golden, so no test touches the network.
+      - name: Scoring canary
+        run: uv run pytest tests/test_scoring_golden.py -v
+
+      - name: Tests
+        run: uv run pytest --cov=ffdraft.scoring --cov-report=term-missing --cov-fail-under=80

@@ -41,3 +41,37 @@ PLAYERS_REQUIRED = {
     "position",
     "latest_team",
 }
+
+# load_player_stats(summary_level="week") — weekly raw stat lines scored by M6.
+PLAYER_STATS_REQUIRED = {
+    "player_id", "player_name", "position", "team", "season", "week", "season_type",
+    "passing_yards", "passing_tds", "passing_interceptions", "passing_2pt_conversions",
+    "passing_40", "completions", "attempts", "passing_first_downs", "sacks_suffered",
+    "rushing_yards", "rushing_tds", "rushing_2pt_conversions", "rushing_40", "carries",
+    "rushing_first_downs", "receptions", "receiving_yards", "receiving_tds",
+    "receiving_2pt_conversions", "receiving_40", "receiving_first_downs",
+    "fumbles_total", "fumbles_lost_total", "fumble_recovery_tds", "special_teams_tds",
+    "fg_made_0_19", "fg_made_20_29", "fg_made_30_39", "fg_made_40_49", "fg_made_50_59",
+    "fg_made_60_", "fg_made", "fg_missed", "fg_missed_0_19", "fg_missed_20_29",
+    "fg_missed_30_39", "fg_missed_40_49", "fg_missed_50_59", "fg_missed_60_",
+    "fg_made_distance", "fg_blocked", "pat_made", "pat_missed", "pat_blocked",
+}
+
+# load_team_stats(summary_level="week") — only the offensive totals; yards allowed is the
+# opponent's official net yardage (gross passing + rushing + sack yards lost, the last negative).
+TEAM_STATS_REQUIRED = {
+    "team", "season", "week", "season_type", "passing_yards", "rushing_yards", "sack_yards_lost",
+}
+
+# load_schedules() — final scores drive the points-allowed tier.
+SCHEDULES_REQUIRED = {"season", "week", "home_team", "away_team", "home_score", "away_score"}
+
+# load_pbp() — play level, needed for the 40+ yard TD bonuses and every team-defense event.
+PBP_REQUIRED = {
+    "game_id", "season", "week", "season_type", "posteam", "defteam", "play_type",
+    "special", "touchdown", "td_team", "pass_touchdown", "rush_touchdown", "yards_gained",
+    "passer_player_id", "rusher_player_id", "receiver_player_id",
+    "sack", "interception", "safety", "punt_blocked", "field_goal_result", "extra_point_result",
+    "fumble", "aborted_play", "forced_fumble_player_1_team", "forced_fumble_player_2_team",
+    "fumble_recovery_1_team", "fumble_recovery_2_team", "fumbled_1_team", "fumbled_2_team",
+}

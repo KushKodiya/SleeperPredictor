@@ -111,5 +111,13 @@ class Config(_Base):
 
 def load_config(path: str | Path = "config.yaml") -> Config:
     """Read and validate `config.yaml`, failing fast on malformed input."""
-    raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    p = Path(path)
+    if not p.exists():
+        # config.yaml is gitignored (it holds live league IDs), so a fresh clone has
+        # only the example. Say so rather than raising a bare FileNotFoundError.
+        raise FileNotFoundError(
+            f"{p} not found. Copy config.example.yaml to {p} and fill in the "
+            f"league_id, draft_id and my_user_id from your Sleeper league."
+        )
+    raw = yaml.safe_load(p.read_text(encoding="utf-8"))
     return Config(**raw)

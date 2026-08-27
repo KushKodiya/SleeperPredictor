@@ -5,13 +5,13 @@ from pathlib import Path
 import polars as pl
 
 from ffdraft.data.crosswalk import (
+    _Index,
     build_crosswalk,
     normalize_name,
     resolve_frame,
     resolve_one,
     write_unmatched_report,
 )
-from ffdraft.data.crosswalk import _Index  # noqa: PLC2701 (test needs the index)
 
 
 def _crosswalk():

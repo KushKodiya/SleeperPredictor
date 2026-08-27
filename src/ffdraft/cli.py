@@ -13,6 +13,7 @@ from ffdraft.data import nflverse
 from ffdraft.data.adp import adp_format_from_scoring, fetch_adp, join_adp_to_crosswalk
 from ffdraft.data.crosswalk import build_crosswalk, load_id_overrides, write_unmatched_report
 from ffdraft.data.sleeper import SleeperClient
+from ffdraft.scoring import golden
 
 app = typer.Typer(add_completion=False, help="Fantasy football draft engine")
 console = Console()
@@ -86,6 +87,40 @@ def rebuild(
         f"top-{top.height} ADP crosswalk coverage: "
         f"[bold {style}]{coverage:.1%}[/bold {style}]  (gate: >=98%)"
     )
+
+
+@app.command("freeze-golden")
+def freeze_golden(
+    season: int = typer.Option(None, help="Season to freeze; defaults to the prior season"),
+    refresh: bool = typer.Option(False, "--refresh", help="Bypass nflverse caches"),
+) -> None:
+    """Freeze last season of the owner's league as the scoring canary fixture (Phase 2 gate)."""
+    cfg = load_config()
+    client = SleeperClient(
+        timeout=cfg.runtime.http_timeout_seconds, max_retries=cfg.runtime.http_max_retries
+    )
+    league = client.get_league(cfg.league.league_id)
+    if league.previous_league_id is None:
+        raise typer.BadParameter(
+            f"league {cfg.league.league_id} has no previous_league_id; "
+            f"there is no prior season to reproduce"
+        )
+    prior = client.get_league(league.previous_league_id)
+    year = season or int(prior.season or cfg.league.season - 1)
+
+    out = golden.build_fixture(prior.league_id, year, client=client, refresh=refresh)
+    console.print(f"froze {year} league {prior.league_id} -> [bold]{out}[/bold]")
+
+    teams, _ = golden.reproduce(golden.load_fixture(out))
+    worst = teams.select(pl.col("diff").abs().max()).item()
+    failures = teams.filter(pl.col("diff").abs() > golden.TOLERANCE)
+    style = "green" if failures.height == 0 else "red"
+    console.print(
+        f"team-weeks reproduced: [bold {style}]{teams.height - failures.height}/{teams.height}"
+        f"[/bold {style}]  worst diff {worst:.2f}  (gate: <= {golden.TOLERANCE})"
+    )
+    if failures.height:
+        console.print(failures)
 
 
 if __name__ == "__main__":

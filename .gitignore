@@ -18,12 +18,20 @@ build/
 dist/
 *.egg-info/
 
-# Generated data caches and reports (PRD §4: data/raw is gitignored)
-data
+# Generated data caches and reports (PRD §4: data/raw is gitignored).
+# Anchored to the repo root: a bare "data" also matches src/ffdraft/data/, which
+# silently kept the whole M1/M2/M3/M5 package out of the repository.
+/data/
 
 # Secrets / local env
 .env
 .env.*
+
+# Your live config, holding the real Sleeper league/draft/user IDs. This repo is
+# public, and those IDs resolve to your display name and every leaguemate's via the
+# open Sleeper API, so the working copy stays local. config.example.yaml carries the
+# same defaults with placeholder IDs and is the file the tests and CI read.
+/config.yaml
 
 # Editors / OS
 .vscode/
