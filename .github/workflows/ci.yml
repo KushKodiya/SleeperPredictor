@@ -30,4 +30,5 @@ jobs:
       - name: Tests
         run: >-
           uv run pytest --cov=ffdraft.scoring --cov=ffdraft.valuation --cov=ffdraft.draft
+          --cov=ffdraft.sim --cov=ffdraft.lineup --cov=ffdraft.backtest
           --cov-report=term-missing --cov-fail-under=80

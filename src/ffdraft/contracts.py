@@ -88,3 +88,21 @@ FF_PLAYERIDS_FANTASYPROS = {"fantasypros_id", "gsis_id"}
 
 # Manual projection CSV drops (PRD §6.4), one file per source per season.
 PROJECTION_CSV_REQUIRED = {"player_name", "team", "position", "source", "projected_points"}
+
+# load_player_stats() — the subset M16 reads to count games played. Deliberately narrower
+# than PLAYER_STATS_REQUIRED: availability never touches a scoring column, and demanding
+# them would make the contract lie about what this consumer needs.
+PLAYER_GAMES_REQUIRED = {"season", "player_id", "position", "season_type", "week"}
+
+# load_snap_counts() — prior-season workload. Keyed on `pfr_player_id`, NOT gsis_id;
+# join through ff_playerids.pfr_id. Verified 2026-08-27, coverage 2012+.
+SNAP_COUNTS_REQUIRED = {
+    "season", "week", "game_type", "pfr_player_id", "offense_snaps", "position", "team",
+}
+
+# load_players() — birth date drives age at season start. Kept separate from
+# PLAYERS_REQUIRED so the Phase 1 contract stays untouched.
+PLAYERS_BIRTH_REQUIRED = {"gsis_id", "birth_date"}
+
+# ff_playerids join key for the snap-count feed.
+FF_PLAYERIDS_PFR = {"pfr_id", "gsis_id"}

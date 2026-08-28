@@ -10,6 +10,8 @@ import typer
 from rich.console import Console
 from rich.live import Live
 
+from ffdraft.backtest.harness import BacktestResult, head_to_head, summarize
+from ffdraft.backtest.runner import backtest_season, backtestable_seasons, season_inputs
 from ffdraft.config import load_config
 from ffdraft.data import nflverse
 from ffdraft.data.adp import adp_format_from_scoring, fetch_adp, join_adp_to_crosswalk
@@ -18,6 +20,7 @@ from ffdraft.data.overrides import load_overrides
 from ffdraft.data.sleeper import SleeperClient
 from ffdraft.draft.runtime import DraftSession, run_poller
 from ffdraft.draft.ui import board_is_renderable, render
+from ffdraft.lineup.slots import SlotConfig
 from ffdraft.scoring import golden
 from ffdraft.scoring.engine import parse_settings
 from ffdraft.valuation.board import build_board
@@ -234,6 +237,51 @@ def draft(
     finally:
         stop.set()
         console.print(f"anomalies logged to [bold]{cfg.runtime.anomaly_log}[/bold]")
+
+
+@app.command()
+def backtest(
+    seasons: str = typer.Option(None, help="Comma-separated seasons; default all backtestable"),
+    min_training_seasons: int = typer.Option(
+        2, help="Training-season floor for point-in-time boards (see the phase 6 gate)"
+    ),
+    refresh: bool = typer.Option(False, "--refresh", help="Bypass nflverse caches"),
+) -> None:
+    """Replay historical drafts under point-in-time data and compare baselines (Phase 6 gate)."""
+    cfg = load_config()
+    client = SleeperClient(
+        timeout=cfg.runtime.http_timeout_seconds, max_retries=cfg.runtime.http_max_retries
+    )
+    rules = parse_settings(client.get_league(cfg.league.league_id).scoring_settings)
+    slots = SlotConfig.from_league(cfg.league.fallback_roster_positions, cfg.flex_eligibility)
+
+    targets = (
+        [int(s) for s in seasons.split(",")] if seasons else backtestable_seasons(cfg, refresh=refresh)
+    )
+    if not targets:
+        raise typer.BadParameter("no season has both preseason ECR and finished outcomes")
+
+    result, notes = BacktestResult(), []
+    for season in targets:
+        console.print(f"[bold]backtesting {season}...[/bold]")
+        inputs = season_inputs(
+            cfg, rules, season=season, min_training_seasons=min_training_seasons, refresh=refresh
+        )
+        backtest_season(inputs, cfg, slots, result)
+        notes.append((season, inputs.training_seasons, inputs.unresolved_adp))
+
+    frame = result.frame()
+    console.print("\n[bold]distribution across seasons x slots[/bold]")
+    console.print(summarize(frame))
+    console.print("\n[bold]paired against adp_follow, per draft[/bold]")
+    console.print(head_to_head(frame, baseline="adp_follow"))
+    console.print("\n[yellow]point-in-time caveats — the engine differs by season:[/yellow]")
+    for season, trained, unresolved in notes:
+        console.print(
+            f"  {season}: board fit on {trained} training season(s) "
+            f"(production floor is {cfg.calibration.min_training_seasons}); "
+            f"{unresolved} ADP players unresolved"
+        )
 
 
 if __name__ == "__main__":

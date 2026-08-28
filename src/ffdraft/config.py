@@ -72,6 +72,7 @@ class OpponentModelConfig(_Base):
     min_picks_to_fit_manager: int = Field(ge=0)
     temperature_init: float = Field(gt=0)
     adp_noise_sigma_rounds: float = Field(ge=0)
+    ridge_penalty: float = Field(ge=0)
 
 
 class AvailabilityConfig(_Base):
@@ -81,6 +82,7 @@ class AvailabilityConfig(_Base):
     age_bin_width: int = Field(gt=0)
     min_bin_count: int = Field(gt=0)
     workload_percentile_flag: float = Field(ge=0.0, le=1.0)
+    rosterable_percentile: float = Field(ge=0.0, le=1.0)
 
 
 class OverridesConfig(_Base):

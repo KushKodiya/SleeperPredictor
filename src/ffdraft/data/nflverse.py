@@ -24,6 +24,7 @@ from ffdraft.contracts import (
     PLAYER_STATS_REQUIRED,
     PLAYERS_REQUIRED,
     SCHEDULES_REQUIRED,
+    SNAP_COUNTS_REQUIRED,
     TEAM_STATS_REQUIRED,
     assert_columns,
 )
@@ -149,6 +150,20 @@ def ff_rankings(*, refresh: bool = False, cache_dir: Path = CACHE_DIR) -> pl.Dat
         lambda: nfl.load_ff_rankings(type="all"),
         FF_RANKINGS_REQUIRED,
         "nflverse.load_ff_rankings",
+        refresh=refresh,
+        cache_dir=cache_dir,
+    )
+
+
+def snap_counts(
+    seasons: list[int], *, refresh: bool = False, cache_dir: Path = CACHE_DIR
+) -> pl.DataFrame:
+    """Per-game snap counts, 2012+ — the prior-season workload behind M16's tiers."""
+    return _cached(
+        _season_key("snap_counts", seasons),
+        lambda: nfl.load_snap_counts(seasons=seasons),
+        SNAP_COUNTS_REQUIRED,
+        "nflverse.load_snap_counts",
         refresh=refresh,
         cache_dir=cache_dir,
     )

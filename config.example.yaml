@@ -61,6 +61,10 @@ opponent_model:
   min_picks_to_fit_manager: 30     # below this, manager == league average
   temperature_init: 1.0            # fitted; the single most valuable parameter
   adp_noise_sigma_rounds: 1.2      # pure-fallback model if fitting fails
+  ridge_penalty: 0.0               # L2 on the deviation coefficients. Selected on a held-out
+                                   # validation split: every non-zero value made prediction
+                                   # monotonically worse here (2.01 -> 3.83 log loss). Kept as a
+                                   # knob for a thinner dataset that does need shrinking.
 
 availability:
   games_per_season: 17
@@ -68,7 +72,9 @@ availability:
   lookback_seasons: 10
   age_bin_width: 1
   min_bin_count: 30                  # below this, pool to position-wide rate
-  workload_percentile_flag: 0.80     # prior-season snap volume above this = elevated risk
+  workload_percentile_flag: 0.80     # prior-season snap volume above this = its own cell (see M16)
+  rosterable_percentile: 0.50        # train on players at/above this prior-snap percentile;
+                                     # below it the population is fringe players who never had a role
 
 overrides:
   projection_overrides: "overrides/projection_overrides.csv"

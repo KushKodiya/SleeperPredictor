@@ -134,8 +134,15 @@ def build_board(
     season: int,
     overrides: list[Override] | None = None,
     refresh: bool = False,
+    min_training_seasons: int | None = None,
 ) -> tuple[pl.DataFrame, BoardDiagnostics]:
-    """The full pipeline, from expert ranks to a ranked, tiered board."""
+    """The full pipeline, from expert ranks to a ranked, tiered board.
+
+    `min_training_seasons` overrides the configured floor. Only the backtest passes it:
+    FantasyPros ECR starts in 2020, so a point-in-time board for any season before 2026
+    genuinely had fewer prior seasons than production demands, and refusing to build one
+    would mean never measuring the board at all.
+    """
     rankings = nflverse.ff_rankings(refresh=refresh)
     schedules = nflverse.schedules([season, *range(season - 10, season)], refresh=refresh)
     ids = nflverse.ff_playerids(refresh=refresh)
@@ -162,7 +169,11 @@ def build_board(
         training,
         target_season=season,
         fit_pool=cfg.calibration.fit_pool,
-        min_training_seasons=cfg.calibration.min_training_seasons,
+        min_training_seasons=(
+            cfg.calibration.min_training_seasons
+            if min_training_seasons is None
+            else min_training_seasons
+        ),
     )
 
     ranked, unresolved = projections.preseason_ecr(rankings, schedules, ids, season=season)

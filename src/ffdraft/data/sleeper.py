@@ -119,11 +119,14 @@ class Draft(_SleeperModel):
     draft_id: str
     status: str | None = None
     type: str | None = None
+    season: str | None = None          # string in the API, e.g. "2025"
+    league_id: str | None = None
+    metadata: dict = {}                # carries scoring_type
     settings: dict = {}
     draft_order: dict | None = None
     slot_to_roster_id: dict | None = None
 
-    @field_validator("draft_id", mode="before")
+    @field_validator("draft_id", "league_id", mode="before")
     @classmethod
     def _stringify(cls, v: Any) -> Any:
         return _as_str(v)
@@ -222,6 +225,18 @@ class SleeperClient:
         return [
             Matchup.model_validate(m)
             for m in self._get_json(f"/league/{league_id}/matchups/{week}")
+        ]
+
+    def get_user_drafts(self, user_id: str, season: int) -> list[Draft]:
+        """Every draft a user took part in that season — the opponent model's corpus.
+
+        This is the only way to reach a draft: through a known user or league id. Sleeper
+        has no endpoint that enumerates public drafts, so there is nothing to crawl
+        (PRD §11.9).
+        """
+        return [
+            Draft.model_validate(d)
+            for d in self._get_json(f"/user/{user_id}/drafts/nfl/{season}")
         ]
 
     def get_users(self, league_id: str) -> list[User]:
