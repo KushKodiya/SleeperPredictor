@@ -8,6 +8,11 @@ Three properties matter more than the module's size:
 - **Applied after calibration.** A manual number is a statement of fact, not a
   projection to shrink, so it is taken at face value and never passed back through the
   fit.
+- **`games_played` is recorded and shown, not arithmetic.** The projections are fit on
+  actual season totals, which already carry the games those players missed, so scaling
+  one by `games_played / 17` would discount availability twice by an unknown amount.
+  Until Phase 5's availability model can say how many games a projection already
+  assumes, the override rides along as a visible note and the number is left alone.
 - **Unique resolution or nothing.** A `player_name` matching two players fails the load
   rather than guessing which one the owner meant.
 - **All or nothing.** One malformed row fails the whole file, with every offending line
@@ -29,7 +34,7 @@ REQUIRED_COLUMNS = {"field", "value", "reason"}
 PROJECTED_POINTS = "projected_points"
 EXCLUDE = "exclude"
 GAMES_PLAYED = "games_played"
-SUPPORTED_FIELDS = (PROJECTED_POINTS, EXCLUDE)
+SUPPORTED_FIELDS = (PROJECTED_POINTS, GAMES_PLAYED, EXCLUDE)
 
 _TRUE = {"true", "yes", "1", "t", "y"}
 _FALSE = {"false", "no", "0", "f", "n"}
@@ -62,6 +67,14 @@ def _name_index(crosswalk: pl.DataFrame) -> dict[str, list[str]]:
 
 def _parse_value(field: str, raw: object, line: int) -> float | bool:
     text = str(raw).strip()
+    if field == GAMES_PLAYED:
+        try:
+            games = float(text)
+        except ValueError:
+            raise OverrideError(f"line {line}: games_played {text!r} is not a number") from None
+        if games < 0:
+            raise OverrideError(f"line {line}: games_played {text!r} cannot be negative")
+        return games
     if field == EXCLUDE:
         lowered = text.lower()
         if lowered in _TRUE:
@@ -123,12 +136,6 @@ def load_overrides(
         line = offset + 2  # header occupies line 1
         try:
             field = str(row["field"] or "").strip()
-            if field == GAMES_PLAYED:
-                raise OverrideError(
-                    f"line {line}: {GAMES_PLAYED} overrides need the availability model, "
-                    f"which arrives in Phase 5 (M16). Supported fields today: "
-                    f"{', '.join(SUPPORTED_FIELDS)}."
-                )
             if field not in SUPPORTED_FIELDS:
                 raise OverrideError(
                     f"line {line}: unknown field {field!r}; expected one of "
@@ -169,7 +176,10 @@ def apply_overrides(
     """
     assert_columns(board, {"gsis_id", PROJECTED_POINTS}, "overrides.apply_overrides")
     if not overrides:
-        return board.with_columns(pl.lit(None, dtype=pl.String).alias("override_reason")), []
+        return board.with_columns(
+            pl.lit(None, dtype=pl.String).alias("override_reason"),
+            pl.lit(None, dtype=pl.Float64).alias("override_games"),
+        ), []
 
     present = set(board["gsis_id"].to_list())
     unmatched = [o for o in overrides if o.gsis_id not in present]
@@ -177,10 +187,18 @@ def apply_overrides(
 
     excluded = {o.gsis_id for o in active if o.field == EXCLUDE and o.value is True}
     points = {o.gsis_id: float(o.value) for o in active if o.field == PROJECTED_POINTS}
-    reasons = {o.gsis_id: o.reason for o in active}
+    games = {o.gsis_id: float(o.value) for o in active if o.field == GAMES_PLAYED}
+
+    # A player can carry more than one override row; every reason has to reach the board,
+    # because the one that is hidden is the one that misleads.
+    collected: dict[str, list[str]] = {}
+    for override in active:
+        collected.setdefault(override.gsis_id, []).append(override.reason)
+    reasons = {gsis: "; ".join(dict.fromkeys(rs)) for gsis, rs in collected.items()}
 
     out = board.with_columns(
         pl.col("gsis_id").replace_strict(points, default=None).alias("_override_points"),
+        pl.col("gsis_id").replace_strict(games, default=None).alias("override_games"),
         pl.col("gsis_id").replace_strict(reasons, default=None).alias("override_reason"),
     )
     return (

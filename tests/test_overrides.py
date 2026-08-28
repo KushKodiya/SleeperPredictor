@@ -95,10 +95,17 @@ def test_unknown_field_raises(tmp_path):
         load_overrides(path, CROSSWALK, now=NOW)
 
 
-def test_games_played_override_is_refused_until_the_availability_model_exists(tmp_path):
-    """Recognised by the PRD schema but not actionable yet - refuse loudly, never no-op."""
+def test_games_played_override_loads_and_carries_its_value(tmp_path):
     path = _write(tmp_path, "player_name,field,value,reason\nA.J. Brown,games_played,14,soft tissue\n")
-    with pytest.raises(OverrideError, match="Phase 5"):
+    (override,) = load_overrides(path, CROSSWALK, now=NOW)
+    assert override.field == "games_played"
+    assert override.value == pytest.approx(14.0)
+
+
+@pytest.mark.parametrize("value", ["not-a-number", "-3"])
+def test_a_bad_games_played_value_fails_the_load(tmp_path, value):
+    path = _write(tmp_path, f"player_name,field,value,reason\nA.J. Brown,games_played,{value},hmm\n")
+    with pytest.raises(OverrideError, match="games_played"):
         load_overrides(path, CROSSWALK, now=NOW)
 
 
@@ -162,3 +169,30 @@ def test_no_overrides_still_yields_the_marker_column():
     assert "override_reason" in board.columns
     assert board["override_reason"].null_count() == board.height
     assert unmatched == []
+
+
+def test_games_played_is_recorded_and_shown_but_does_not_move_the_projection(tmp_path):
+    """The projection already carries typical missed games; discounting again double-counts."""
+    overrides = _load(
+        tmp_path, "player_name,field,value,reason\nA.J. Brown,games_played,14,soft tissue\n"
+    )
+    board, _ = apply_overrides(BOARD, overrides)
+    row = board.filter(pl.col("gsis_id") == "00-0000001").to_dicts()[0]
+    assert row["projected_points"] == pytest.approx(240.0)  # untouched
+    assert row["override_games"] == pytest.approx(14.0)     # but visible
+    assert row["override_reason"] == "soft tissue"
+
+
+def test_a_player_can_carry_both_a_points_and_a_games_override(tmp_path):
+    """Both reasons must reach the board; the hidden one is the one that misleads."""
+    overrides = _load(
+        tmp_path,
+        "player_name,field,value,reason\n"
+        "A.J. Brown,projected_points,275,camp buzz\n"
+        "A.J. Brown,games_played,14,soft tissue\n",
+    )
+    board, _ = apply_overrides(BOARD, overrides)
+    row = board.filter(pl.col("gsis_id") == "00-0000001").to_dicts()[0]
+    assert row["projected_points"] == pytest.approx(275.0)
+    assert row["override_games"] == pytest.approx(14.0)
+    assert "camp buzz" in row["override_reason"] and "soft tissue" in row["override_reason"]

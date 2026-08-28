@@ -35,7 +35,8 @@ POSITION_ALIASES = {"DST": "DEF", "PK": "K"}
 
 BOARD_COLUMNS = [
     "rank", "tier", "name", "position", "team", "gsis_id", "ecr", "projected_points",
-    "replacement_points", "vor", "points_se", "n_sources", "override_reason",
+    "replacement_points", "vor", "points_se", "n_sources", "override_games",
+    "override_reason",
 ]
 
 
@@ -222,6 +223,26 @@ def build_board(
         unmatched_csv_rows=unmatched_csv,
         unmatched_overrides=unmatched_overrides,
     )
+
+
+def revalue(
+    board: pl.DataFrame, overrides: list[Override]
+) -> tuple[pl.DataFrame, list[Override]]:
+    """Re-apply overrides to an already-built board and recompute value from them.
+
+    The live loop cannot rebuild the board on every poll — that costs minutes of network
+    and fitting. It does not need to: `replacement_points` and `points_se` already travel
+    on each row, so an overridden projection only has to be re-differenced and re-tiered.
+
+    Pass the board as built *without* overrides; this applies the current set from
+    scratch, so a removed override reverts rather than sticking.
+    """
+    revalued, unmatched = apply_overrides(board, overrides)
+    revalued = revalued.with_columns(
+        (pl.col("projected_points") - pl.col("replacement_points")).alias("vor")
+    )
+    revalued = assign_tiers(revalued.sort(["vor", "ecr", "gsis_id"], descending=[True, False, False]))
+    return revalued.with_columns(pl.int_range(1, pl.len() + 1).alias("rank")), unmatched
 
 
 def _crosswalk(ff_playerids: pl.DataFrame) -> pl.DataFrame:

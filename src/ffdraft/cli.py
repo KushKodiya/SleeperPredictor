@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 
 import polars as pl
 import typer
 from rich.console import Console
+from rich.live import Live
 
 from ffdraft.config import load_config
 from ffdraft.data import nflverse
@@ -14,6 +16,8 @@ from ffdraft.data.adp import adp_format_from_scoring, fetch_adp, join_adp_to_cro
 from ffdraft.data.crosswalk import build_crosswalk, load_id_overrides, write_unmatched_report
 from ffdraft.data.overrides import load_overrides
 from ffdraft.data.sleeper import SleeperClient
+from ffdraft.draft.runtime import DraftSession, run_poller
+from ffdraft.draft.ui import board_is_renderable, render
 from ffdraft.scoring import golden
 from ffdraft.scoring.engine import parse_settings
 from ffdraft.valuation.board import build_board
@@ -165,6 +169,71 @@ def board(
             f"[yellow]WARNING: override on line {override.line} targets "
             f"{override.gsis_id}, who is not on the board[/yellow]"
         )
+
+
+@app.command()
+def draft(
+    season: int = typer.Option(None, help="Season the board is built for"),
+    top: int = typer.Option(15, help="How many available players to show"),
+    once: bool = typer.Option(False, "--once", help="Poll once, print the board, exit"),
+    draft_id: str = typer.Option(None, help="Override the draft id from config"),
+    refresh: bool = typer.Option(False, "--refresh", help="Bypass nflverse caches"),
+) -> None:
+    """Track a live Sleeper draft against the ranked board (Phase 4 gate)."""
+    cfg = load_config()
+    year = season or cfg.league.season
+    client = SleeperClient(
+        timeout=cfg.runtime.http_timeout_seconds, max_retries=cfg.runtime.http_max_retries
+    )
+
+    # Roster slots come from the live league; config only backs it up (config.yaml §league).
+    try:
+        league = client.get_league(cfg.league.league_id)
+        rules = parse_settings(league.scoring_settings)
+        roster_positions = league.roster_positions or cfg.league.fallback_roster_positions
+    except Exception as exc:
+        console.print(f"[yellow]league fetch failed ({exc}); using configured fallbacks[/yellow]")
+        raise typer.Exit(1) from exc
+
+    console.print("[bold]building the board...[/bold]")
+    board, diagnostics = build_board(cfg, rules, season=year, overrides=[], refresh=refresh)
+    if not board_is_renderable(board):
+        raise typer.BadParameter(f"board is missing UI columns: {sorted(board.columns)}")
+    if diagnostics.unresolved_rankings.height:
+        console.print(
+            f"[yellow]{diagnostics.unresolved_rankings.height} ranked players are not on "
+            f"the board (see the unmatched report)[/yellow]"
+        )
+
+    session = DraftSession(
+        client=client,
+        draft_id=draft_id or cfg.league.draft_id,
+        base_board=board,
+        crosswalk=build_crosswalk(nflverse.ff_playerids()),
+        my_user_id=cfg.league.my_user_id,
+        roster_positions=roster_positions,
+        flex_eligibility=cfg.flex_eligibility,
+        overrides_path=cfg.overrides.projection_overrides,
+        reload_overrides=cfg.overrides.reload_on_every_pick,
+        anomaly_log=cfg.runtime.anomaly_log,
+    )
+
+    if once:
+        console.print(render(session.poll_once(), top=top))
+        return
+
+    stop = threading.Event()
+    run_poller(session, interval=cfg.runtime.poll_interval_seconds, stop=stop)
+    try:
+        with Live(render(session.snapshot(), top=top), console=console, screen=False) as live:
+            while not stop.is_set():
+                live.update(render(session.snapshot(), top=top))
+                stop.wait(0.25)  # render cadence, independent of the poll interval
+    except KeyboardInterrupt:
+        pass
+    finally:
+        stop.set()
+        console.print(f"anomalies logged to [bold]{cfg.runtime.anomaly_log}[/bold]")
 
 
 if __name__ == "__main__":

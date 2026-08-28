@@ -93,6 +93,7 @@ class RuntimeConfig(_Base):
     poll_interval_seconds: float = Field(gt=0)
     http_timeout_seconds: float = Field(gt=0)
     http_max_retries: int = Field(ge=0)
+    anomaly_log: str
 
 
 class Config(_Base):
