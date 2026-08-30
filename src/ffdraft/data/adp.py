@@ -77,7 +77,11 @@ def join_adp_to_crosswalk(
     overrides: dict[str, str] | None = None,
 ) -> tuple[pl.DataFrame, pl.DataFrame]:
     """Resolve ADP rows to gsis_id; return (matched, unmatched). Unmatched reported (R4)."""
-    keep = [c for c in ("name", "position", "team", "rank", "adp") if c in adp_df.columns]
+    # `high` is the earliest pick at which the market actually took the player. The QB
+    # sanity gate needs it: a reach is only a reach relative to what real drafters did.
+    keep = [
+        c for c in ("name", "position", "team", "rank", "adp", "high") if c in adp_df.columns
+    ]
     return resolve_frame(
         adp_df.select(keep), crosswalk, fuzzy_threshold=fuzzy_threshold, overrides=overrides
     )

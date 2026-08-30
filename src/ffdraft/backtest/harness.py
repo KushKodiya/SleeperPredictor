@@ -60,8 +60,13 @@ class Candidate:
     name: str
     position: str
     adp: float | None = None
+    # Earliest pick the market was actually observed to use — the QB sanity gate's yardstick.
+    adp_high: float | None = None
     ecr: float | None = None
     vor: float | None = None
+    # Carried for the Phase 8 rollout, which simulates seasons rather than ranking them.
+    projected_points: float = 0.0
+    team: str | None = None
 
 
 @dataclass(frozen=True)

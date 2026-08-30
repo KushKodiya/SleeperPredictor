@@ -106,3 +106,37 @@ PLAYERS_BIRTH_REQUIRED = {"gsis_id", "birth_date"}
 
 # ff_playerids join key for the snap-count feed.
 FF_PLAYERIDS_PFR = {"pfr_id", "gsis_id"}
+
+# --- Phase 9 sources, verified against the live schema on 2026-08-28 (nflreadpy 0.1.5) ---
+# Several of these differ from the names PRD M17 uses; see the R2 log in CLAUDE.md.
+
+# load_rosters() — ONE ROW PER PLAYER-SEASON, not per week, despite carrying a `week`
+# column. `status` is the roster-status code: RES is reserve/IR, DEV is the practice
+# squad. Both matter to the vacated-opportunity edge cases.
+ROSTERS_REQUIRED = {"season", "team", "gsis_id", "position", "status"}
+
+# load_draft_picks() — draft capital. The columns are `round` and `pick`, NOT the
+# `draft_round` / `draft_pick` that PRD M17 names.
+DRAFT_PICKS_REQUIRED = {"season", "team", "gsis_id", "round", "pick"}
+
+# load_contracts() — the guarantee column is `guaranteed`, NOT `guaranteed_money`.
+# This frame has NO season column; a contract is dated by `year_signed` and `years`.
+CONTRACTS_REQUIRED = {"gsis_id", "guaranteed", "year_signed", "years", "is_active"}
+
+# load_depth_charts() — team is `club_code`, not `team`.
+DEPTH_CHARTS_REQUIRED = {"season", "club_code", "gsis_id", "position", "depth_team"}
+
+# load_ff_opportunity() — pre-computed expected fantasy points (do not rebuild, §6.1).
+# Keyed on `player_id`, which holds a gsis_id. `season` is a String and `week` a Float
+# here, unlike every other nflverse frame; cast before joining.
+FF_OPPORTUNITY_REQUIRED = {
+    "season",
+    "week",
+    "player_id",
+    "posteam",
+    "position",
+    "rec_attempt",
+    "rush_attempt",
+    "total_fantasy_points",
+    "total_fantasy_points_exp",
+}

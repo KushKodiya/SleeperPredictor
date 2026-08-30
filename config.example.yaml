@@ -42,8 +42,35 @@ replacement:
   waiver_percentile: 0.50          # median weekly FA production by position
 
 simulation:
-  n_sims_live: 2000
-  n_sims_backtest: 500
+  # A scenario is one way the rest of the draft falls; n_sims is how many seasons are
+  # drawn inside each one. Most of the variance in Q lives in how the board falls, not in
+  # the seasons that follow, so scenarios are what buy a stable recommendation -- and a
+  # scenario is also what costs, because it replays the whole remaining draft.
+  #
+  # Measured on the owner's machine, first pick of a 15-round 8-team draft, 256-player
+  # board, 15 candidates (see the phase 8 gate):
+  #    32 scenarios x  64 sims ->  7.2s
+  #    64 scenarios x 128 sims -> 19.7s   <- chosen: 25s of margin under the budget
+  #   128 scenarios x 256 sims -> 60.6s   (over)
+  # n_sims_live was 2000 in the PRD. That predates the scenario loop, which is where the
+  # draws actually have to go; 64 x 128 spends more total draws than 2000 ever did.
+  n_sims_live: 128
+  n_sims_backtest: 32
+  n_scenarios_live: 64
+  # The backtest runs 600 recommendations over historical boards twice the size of a live
+  # one, so it takes a quarter of the live scenario count to finish in under an hour.
+  n_scenarios_backtest: 16
+  # Championship equity multiplies the season half of the work by the number of teams, so
+  # it needs its own budget. Measured on the owner's machine, first pick, 256-player board,
+  # 15 candidates, against the live 45s budget:
+  #    2 scenarios x   8 sims ->  0.8s   (standard error 0.133 -- far too noisy to rank on)
+  #    8 scenarios x  32 sims ->  5.4s   (se 0.015)
+  #   16 scenarios x  64 sims -> 15.9s   <- chosen: se 0.013, 29s of margin
+  #   32 scenarios x 128 sims -> 53.9s   (over)
+  # A title is a Bernoulli outcome per sim, so Q is far noisier than a points mean at the
+  # same sample count; the error, not the runtime, is what sets the floor here.
+  n_scenarios_equity: 16
+  n_sims_equity: 64
   shortlist_size: 10
   force_best_at_each_position: true
   common_random_numbers: true

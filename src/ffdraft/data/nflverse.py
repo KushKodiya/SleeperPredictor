@@ -18,11 +18,16 @@ import nflreadpy as nfl
 import polars as pl
 
 from ffdraft.contracts import (
+    CONTRACTS_REQUIRED,
+    DEPTH_CHARTS_REQUIRED,
+    DRAFT_PICKS_REQUIRED,
+    FF_OPPORTUNITY_REQUIRED,
     FF_PLAYERIDS_REQUIRED,
     FF_RANKINGS_REQUIRED,
     PBP_REQUIRED,
     PLAYER_STATS_REQUIRED,
     PLAYERS_REQUIRED,
+    ROSTERS_REQUIRED,
     SCHEDULES_REQUIRED,
     SNAP_COUNTS_REQUIRED,
     TEAM_STATS_REQUIRED,
@@ -164,6 +169,94 @@ def snap_counts(
         lambda: nfl.load_snap_counts(seasons=seasons),
         SNAP_COUNTS_REQUIRED,
         "nflverse.load_snap_counts",
+        refresh=refresh,
+        cache_dir=cache_dir,
+    )
+
+
+def rosters(
+    seasons: list[int], *, refresh: bool = False, cache_dir: Path = CACHE_DIR
+) -> pl.DataFrame:
+    """Season rosters — who was actually on each team, for the vacated-opportunity calc.
+
+    One row per player-season despite the `week` column, which holds the last week the
+    player appears rather than making this a weekly frame. `status` carries the roster
+    code that the M17 edge cases turn on: `RES` is reserve/IR, `DEV` the practice squad.
+    """
+    return _cached(
+        _season_key("rosters", seasons),
+        lambda: nfl.load_rosters(seasons=seasons),
+        ROSTERS_REQUIRED,
+        "nflverse.load_rosters",
+        refresh=refresh,
+        cache_dir=cache_dir,
+    )
+
+
+def draft_picks(*, refresh: bool = False, cache_dir: Path = CACHE_DIR) -> pl.DataFrame:
+    """Draft capital, 1980+. The columns are `round` and `pick` (PRD M17 names them wrong)."""
+    return _cached(
+        "draft_picks",
+        nfl.load_draft_picks,
+        DRAFT_PICKS_REQUIRED,
+        "nflverse.load_draft_picks",
+        refresh=refresh,
+        cache_dir=cache_dir,
+    )
+
+
+def contracts(*, refresh: bool = False, cache_dir: Path = CACHE_DIR) -> pl.DataFrame:
+    """Player contracts — guaranteed money as a proxy for team intent.
+
+    The guarantee column is `guaranteed`, not `guaranteed_money`. This frame carries no
+    season column at all: a contract is placed in time by `year_signed` and `years`, so
+    anything season-scoped must derive the season rather than filter on one.
+    """
+    return _cached(
+        "contracts",
+        nfl.load_contracts,
+        CONTRACTS_REQUIRED,
+        "nflverse.load_contracts",
+        refresh=refresh,
+        cache_dir=cache_dir,
+    )
+
+
+def depth_charts(
+    seasons: list[int], *, refresh: bool = False, cache_dir: Path = CACHE_DIR
+) -> pl.DataFrame:
+    """Positional competition, 2001+. Team is `club_code` here, not `team`."""
+    return _cached(
+        _season_key("depth_charts", seasons),
+        lambda: nfl.load_depth_charts(seasons=seasons),
+        DEPTH_CHARTS_REQUIRED,
+        "nflverse.load_depth_charts",
+        refresh=refresh,
+        cache_dir=cache_dir,
+    )
+
+
+def ff_opportunity(
+    seasons: list[int], *, refresh: bool = False, cache_dir: Path = CACHE_DIR
+) -> pl.DataFrame:
+    """Pre-computed expected fantasy points from the ffverse model, 2006+.
+
+    PRD §6.1 is explicit that this is consumed, never rebuilt. `player_id` holds a
+    gsis_id, the team is `posteam`, and — alone among nflverse frames — `season` arrives
+    as a String and `week` as a Float, so both are cast here to match everything else.
+    """
+
+    def load() -> pl.DataFrame:
+        frame = nfl.load_ff_opportunity(seasons=seasons)
+        return frame.with_columns(
+            pl.col("season").cast(pl.Int64), pl.col("week").cast(pl.Int64)
+        )
+
+    return _cached(
+        _season_key("ff_opportunity", seasons),
+        load,
+        FF_OPPORTUNITY_REQUIRED,
+        "nflverse.load_ff_opportunity",
         refresh=refresh,
         cache_dir=cache_dir,
     )

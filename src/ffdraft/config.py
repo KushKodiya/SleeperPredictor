@@ -56,6 +56,10 @@ class ReplacementConfig(_Base):
 class SimulationConfig(_Base):
     n_sims_live: int = Field(gt=0)
     n_sims_backtest: int = Field(gt=0)
+    n_scenarios_live: int = Field(gt=0)
+    n_scenarios_backtest: int = Field(gt=0)
+    n_scenarios_equity: int = Field(gt=0)
+    n_sims_equity: int = Field(gt=0)
     shortlist_size: int = Field(gt=0)
     force_best_at_each_position: bool
     common_random_numbers: bool

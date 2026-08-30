@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from zlib import crc32
 
 import numpy as np
 import polars as pl
@@ -121,26 +122,38 @@ def simulate_players(
     n_sims: int,
     n_weeks: int,
     dispersion: dict[str, float],
+    crn_seed: int | None = None,
 ) -> np.ndarray:
     """Weekly points for every player in every sim: shape (n_sims, n_players, n_weeks).
 
     Inactive and bye weeks are exactly zero.
+
+    With `crn_seed`, each player's draws come from a generator keyed on his own id, so
+    the same player samples the *same* season no matter which roster he is in or where he
+    sits in it. That is what common random numbers has to mean here: seeding one shared
+    generator identically is not enough, because two rosters that differ by one player
+    consume the stream in different orders and every player downstream diverges.
     """
     scores = np.zeros((n_sims, len(roster), n_weeks))
     for index, player in enumerate(roster):
+        draws = (
+            np.random.default_rng([crn_seed, crc32(player.player_id.encode())])
+            if crn_seed is not None
+            else rng
+        )
         expected = model.expected_games(player.availability)
         if expected <= 0:
             continue
         # The rate that makes the season mean land on the projection.
         rate = player.projected_points / expected
-        games = model.games_played_distribution(player.availability, rng, n_sims=n_sims)
+        games = model.games_played_distribution(player.availability, draws, n_sims=n_sims)
         active = _active_weeks(games, bye=byes.get(player.team or "", NO_BYE),
-                               n_weeks=n_weeks, rng=rng)
+                               n_weeks=n_weeks, rng=draws)
 
         cv = dispersion.get(player.position, 1.0)
         if rate > 0 and cv > 0:
             shape = 1.0 / (cv * cv)
-            drawn = rng.gamma(shape, rate / shape, size=(n_sims, n_weeks))
+            drawn = draws.gamma(shape, rate / shape, size=(n_sims, n_weeks))
         else:
             drawn = np.full((n_sims, n_weeks), rate)
         scores[:, index, :] = np.where(active, drawn, 0.0)

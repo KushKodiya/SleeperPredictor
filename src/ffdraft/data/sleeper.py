@@ -98,6 +98,37 @@ class Matchup(_SleeperModel):
         return _as_str(v)
 
 
+class BracketMatch(_SleeperModel):
+    """One row of a playoff bracket.
+
+    Verified live on 2026-08-28 against the owner's league. PRD M18 describes this shape
+    wrongly: it claims `t1`/`t2` hold "roster ids, or `{w: n}` / `{l: n}` referencing
+    another match". They do not. `t1`/`t2` are a roster id or null, and the references
+    live in their own `t1_from` / `t2_from` keys. `p` — the placement the match decides —
+    is not mentioned in the PRD at all.
+    """
+
+    r: int                              # round
+    m: str                              # match id
+    t1: str | None = None               # roster id, or null until the slot is filled
+    t2: str | None = None
+    t1_from: dict | None = None         # {"w": match} or {"l": match}
+    t2_from: dict | None = None
+    w: str | None = None                # winner roster id, null until played
+    l: str | None = None
+    p: int | None = None                # placement decided here: 1 final, 3 third, 5 fifth
+
+    @field_validator("m", "t1", "t2", "w", "l", mode="before")
+    @classmethod
+    def _stringify(cls, v: Any) -> Any:
+        return _as_str(v)
+
+    @property
+    def decided(self) -> bool:
+        """Whether this match has been played. An unplayed bracket is not a malformed one."""
+        return self.w is not None
+
+
 class League(_SleeperModel):
     league_id: str
     previous_league_id: str | None = None  # prior season's league; the golden-test source
@@ -225,6 +256,25 @@ class SleeperClient:
         return [
             Matchup.model_validate(m)
             for m in self._get_json(f"/league/{league_id}/matchups/{week}")
+        ]
+
+    def get_winners_bracket(self, league_id: str) -> list[BracketMatch]:
+        """The league's playoff bracket, as it actually publishes it.
+
+        Sleeper serves a fully-formed bracket even for a league in `pre_draft` status,
+        with every `w` and `l` null — so the presence of a bracket says nothing about
+        whether the season has been played. Use `BracketMatch.decided` for that.
+        """
+        return [
+            BracketMatch.model_validate(m)
+            for m in self._get_json(f"/league/{league_id}/winners_bracket")
+        ]
+
+    def get_losers_bracket(self, league_id: str) -> list[BracketMatch]:
+        """The consolation bracket, same row shape as the winners bracket."""
+        return [
+            BracketMatch.model_validate(m)
+            for m in self._get_json(f"/league/{league_id}/losers_bracket")
         ]
 
     def get_user_drafts(self, user_id: str, season: int) -> list[Draft]:

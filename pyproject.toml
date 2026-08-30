@@ -15,9 +15,11 @@ dependencies = [
     "rich",
     "typer",
     "scikit-learn",
+    # Quantile regression for M15 only. PRD §3.2 gates this to Phase 9 ("do not install
+    # earlier"); Phase 9 is now being built, so it enters here and nowhere earlier.
+    "lightgbm",
 ]
 
-# lightgbm is intentionally NOT listed: PRD §3.2 gates it to Phase 9 ("do not install earlier").
 # pandas is intentionally excluded: PRD §3.2 / §11.3 mandate Polars.
 
 [project.scripts]

@@ -11,7 +11,14 @@ from rich.console import Console
 from rich.live import Live
 
 from ffdraft.backtest.harness import BacktestResult, head_to_head, summarize
-from ffdraft.backtest.runner import backtest_season, backtestable_seasons, season_inputs
+from ffdraft.backtest.runner import (
+    backtest_opponent,
+    backtest_season,
+    backtest_season_rollout,
+    backtestable_seasons,
+    season_inputs,
+    sim_season,
+)
 from ffdraft.config import load_config
 from ffdraft.data import nflverse
 from ffdraft.data.adp import adp_format_from_scoring, fetch_adp, join_adp_to_crosswalk
@@ -21,6 +28,8 @@ from ffdraft.data.sleeper import SleeperClient
 from ffdraft.draft.runtime import DraftSession, run_poller
 from ffdraft.draft.ui import board_is_renderable, render
 from ffdraft.lineup.slots import SlotConfig
+from ffdraft.models.promotion import decide_source
+from ffdraft.models.runner import run_gates
 from ffdraft.scoring import golden
 from ffdraft.scoring.engine import parse_settings
 from ffdraft.valuation.board import build_board
@@ -246,6 +255,10 @@ def backtest(
         2, help="Training-season floor for point-in-time boards (see the phase 6 gate)"
     ),
     refresh: bool = typer.Option(False, "--refresh", help="Bypass nflverse caches"),
+    rollout: bool = typer.Option(
+        False, "--rollout", help="Also run the Phase 8 rollout (slow: it simulates every pick)"
+    ),
+    seed: int = typer.Option(42, help="Seed for the rollout arm (R7: no implicit randomness)"),
 ) -> None:
     """Replay historical drafts under point-in-time data and compare baselines (Phase 6 gate)."""
     cfg = load_config()
@@ -256,7 +269,11 @@ def backtest(
     slots = SlotConfig.from_league(cfg.league.fallback_roster_positions, cfg.flex_eligibility)
 
     targets = (
-        [int(s) for s in seasons.split(",")] if seasons else backtestable_seasons(cfg, refresh=refresh)
+        [int(s) for s in seasons.split(",")]
+        if seasons
+        else backtestable_seasons(
+            cfg, min_training_seasons=min_training_seasons, refresh=refresh
+        )
     )
     if not targets:
         raise typer.BadParameter("no season has both preseason ECR and finished outcomes")
@@ -268,6 +285,14 @@ def backtest(
             cfg, rules, season=season, min_training_seasons=min_training_seasons, refresh=refresh
         )
         backtest_season(inputs, cfg, slots, result)
+        if rollout:
+            console.print(f"  rollout arm for {season} (simulating every pick)...")
+            backtest_season_rollout(
+                inputs, cfg, slots, result,
+                sim_season(cfg, rules, season=season, refresh=refresh),
+                backtest_opponent(cfg),
+                seed=seed,
+            )
         notes.append((season, inputs.training_seasons, inputs.unresolved_adp))
 
     frame = result.frame()
@@ -281,6 +306,57 @@ def backtest(
             f"  {season}: board fit on {trained} training season(s) "
             f"(production floor is {cfg.calibration.min_training_seasons}); "
             f"{unresolved} ADP players unresolved"
+        )
+
+
+@app.command()
+def projections(
+    seasons: str = typer.Option(None, help="Comma-separated held-out seasons; default all"),
+    seed: int = typer.Option(42, help="Seed for the projection model (R7)"),
+    min_training_seasons: int = typer.Option(
+        2, help="Training-season floor for the point-in-time boards it is compared against"
+    ),
+    refresh: bool = typer.Option(False, "--refresh", help="Bypass nflverse caches"),
+) -> None:
+    """Run the Phase 9 projection-model gates and report which source is live."""
+    cfg = load_config()
+    client = SleeperClient(
+        timeout=cfg.runtime.http_timeout_seconds, max_retries=cfg.runtime.http_max_retries
+    )
+    rules = parse_settings(client.get_league(cfg.league.league_id).scoring_settings)
+    targets = (
+        [int(s) for s in seasons.split(",")]
+        if seasons
+        else backtestable_seasons(
+            cfg, min_training_seasons=min_training_seasons, refresh=refresh
+        )
+    )
+    if not targets:
+        raise typer.BadParameter("no season has both preseason ECR and finished outcomes")
+
+    console.print(f"[bold]evaluating {targets}...[/bold] (fits one model per season)")
+    hard, soft, evidence = run_gates(
+        cfg, rules, seasons=targets, seed=seed,
+        min_training_seasons=min_training_seasons, refresh=refresh,
+    )
+
+    console.print()
+    console.print("[bold]per season[/bold]")
+    console.print(hard.by_season)
+    console.print()
+    console.print("[bold]pooled[/bold]")
+    console.print(hard.pooled)
+
+    source = decide_source(hard, soft)
+    verdict = "PASS" if hard.passed else "FAIL"
+    colour = "green" if hard.passed else "yellow"
+    console.print()
+    console.print(f"[bold]hard gate:[/bold] [{colour}]{verdict}[/{colour}]")
+    console.print(source.describe())
+    for item in evidence:
+        console.print(
+            f"  {item.season}: pool {item.pool_size}, "
+            f"{item.frame.height} matched, trained on {list(item.training_seasons)}"
         )
 
 
